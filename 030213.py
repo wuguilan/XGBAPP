@@ -154,9 +154,9 @@ if xgb_model:
                     elif feature == 'creatinine':
                         label = "肌酐 (mg/dL)"
                     elif feature == 'pt':
-                        label = "凝血酶原时间 (秒)"
+                        label = "PT(秒)"
                     elif feature == 'ptt':
-                        label = "部分凝血活酶时间 (秒)"
+                        label = "PTT(秒)"
                     elif feature == 'heartrate':
                         label = "心率 (次/分)"
                     elif feature == 'respiratoryrate':
