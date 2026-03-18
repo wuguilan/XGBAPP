@@ -216,86 +216,25 @@ if xgb_model:
             
             st.markdown("---")
             
-            # --- SHAP 个体化解释 ---
-            st.subheader("📊 个体化预测归因分析")
-            st.markdown("""
-            **红色**：增加死亡风险的因素  
-            **蓝色**：降低死亡风险的因素  
-            *横坐标表示该特征对预测结果的影响程度*
-            """)
-            
-            try:
-                # 创建SHAP解释器
-                explainer = shap.TreeExplainer(xgb_model)
-                
-                # 计算SHAP值
-                shap_values = explainer.shap_values(input_df)
-                
-                # 处理SHAP值（针对二分类）
-                if isinstance(shap_values, list):
-                    shap_values_for_plot = shap_values[1][0] if len(shap_values) > 1 else shap_values[0][0]
-                else:
-                    shap_values_for_plot = shap_values[0]
-                
-                # 获取期望值
-                if hasattr(explainer, 'expected_value'):
-                    if isinstance(explainer.expected_value, list):
-                        expected_value = explainer.expected_value[1] if len(explainer.expected_value) > 1 else explainer.expected_value[0]
-                    else:
-                        expected_value = explainer.expected_value
-                else:
-                    expected_value = 0
-                
-                # 创建Explanation对象
-                shap_exp = shap.Explanation(
-                    values=shap_values_for_plot,
-                    base_values=expected_value,
-                    data=input_df.iloc[0].values,
-                    feature_names=[FEATURE_DISPLAY_NAMES.get(f, f) for f in input_df.columns]
-                )
-                
-                # 绘制waterfall图
-                fig, ax = plt.subplots(figsize=(12, 8))
-                shap.waterfall_plot(shap_exp, show=False, max_display=15)
-                plt.tight_layout()
-                st.pyplot(fig)
-                plt.close()
-                
-            except Exception as e:
-                st.warning(f"SHAP图生成失败，使用备选方案: {e}")
-                
-                try:
-                    # 备选方案：特征重要性条形图
-                    if hasattr(xgb_model, 'feature_importances_'):
-                        importance_df = pd.DataFrame({
-                            '特征': [FEATURE_DISPLAY_NAMES.get(f, f) for f in FEATURE_COLUMNS],
-                            '重要性': xgb_model.feature_importances_
-                        }).sort_values('重要性', ascending=True)
-                        
-                        fig, ax = plt.subplots(figsize=(10, 8))
-                        bars = ax.barh(importance_df['特征'], importance_df['重要性'])
-                        ax.set_xlabel('特征重要性')
-                        ax.set_title('XGBoost特征重要性排名')
-                        plt.tight_layout()
-                        st.pyplot(fig)
-                        plt.close()
-                except Exception as e2:
-                    st.error(f"备选可视化也失败: {e2}")
-            
-        except Exception as e:
-            st.error(f"预测过程中发生错误: {e}")
-            st.exception(e)
+            # 5. 【新增】计算并显示SHAP个体化解释
+        st.subheader("个体化预测归因 (SHAP Waterfall)")
+        st.markdown(
+            "下图解释了每个特征如何将预测概率从基线值（`base value`）推向最终的输出值。"
+            "**红色**的特征是增加风险的因素，**蓝色**的特征是降低风险的因素。"
+        )
 
-else:
-    st.error("⚠️ 模型未能加载，应用无法运行。")
-    
-    # 调试信息
-    with st.expander("🔧 调试信息"):
-        import os
-        st.write(f"当前工作目录: {os.getcwd()}")
-        st.write(f"目录内容: {os.listdir('.')}")
-        
-        if os.path.exists('xgb_model.joblib'):
-            st.write(f"模型文件大小: {os.path.getsize('xgb_model.joblib')} 字节")
-        else:
-            st.write("模型文件不存在")
+        # 创建SHAP解释器并计算SHAP值
+        explainer = shap.TreeExplainer(xgb_model)
+        shap_values = explainer.shap_values(input_df)
+
+        shap.plots.waterfall(
+            shap.Explanation(
+                values=shap_values[0],
+                base_values=explainer.expected_value,
+                data=input_df.iloc[0],
+                feature_names=input_df.columns
+            ),
+            show=False
+        )
+
+        st.pyplot(plt.gcf())
