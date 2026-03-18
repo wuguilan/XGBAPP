@@ -216,7 +216,7 @@ if xgb_model:
             
             st.markdown("---")
             
-            # --- SHAP 个体化解释 ---
+                        # --- SHAP 个体化解释 ---
             st.subheader("📊 个体化预测归因分析")
             st.markdown("""
             **红色**：增加死亡风险的因素  
@@ -246,36 +246,42 @@ if xgb_model:
                 else:
                     expected_value = 0
                 
-                # 创建包含所有特征的DataFrame用于显示
-                feature_importance_df = pd.DataFrame({
-                    '特征': [FEATURE_DISPLAY_NAMES.get(f, f) for f in input_df.columns],
-                    'SHAP值': shap_values_for_plot,
-                    '原始值': input_df.iloc[0].values
-                }).sort_values('SHAP值', key=abs, ascending=False)
+                # 获取特征名称（使用显示名称）
+                feature_names_display = [FEATURE_DISPLAY_NAMES.get(f, f) for f in input_df.columns]
+                
+                # 创建包含特征名称的Series作为data
+                data_series = pd.Series(
+                    input_df.iloc[0].values, 
+                    index=feature_names_display
+                )
+                
+                # 创建Explanation对象 - 修复特征名称显示
+                shap_exp = shap.Explanation(
+                    values=shap_values_for_plot,
+                    base_values=expected_value,
+                    data=data_series,  # 使用带名称的Series
+                    feature_names=feature_names_display  # 明确指定特征名称
+                )
                 
                 # 提供两种可视化选择
                 viz_option = st.radio(
                     "选择可视化方式:",
-                    ["Waterfall图（显示所有特征）", "条形图（显示所有特征）"],
+                    ["Waterfall图", "条形图（显示所有特征）"],
                     horizontal=True
                 )
                 
-                if viz_option == "Waterfall图（显示所有特征）":
-                    # 创建Explanation对象
-                    shap_exp = shap.Explanation(
-                        values=shap_values_for_plot,
-                        base_values=expected_value,
-                        data=input_df.iloc[0].values,
-                        feature_names=[FEATURE_DISPLAY_NAMES.get(f, f) for f in input_df.columns]
-                    )
+                if viz_option == "Waterfall图":
+                    # 绘制waterfall图
+                    fig, ax = plt.subplots(figsize=(14, 8))
                     
-                    # 绘制waterfall图，显示所有特征
-                    fig, ax = plt.subplots(figsize=(14, 10))
+                    # 创建waterfall图
                     shap.waterfall_plot(
                         shap_exp, 
                         show=False, 
-                        max_display=len(input_df.columns)  # 显示所有特征
+                        max_display=15  # 显示前15个最重要的特征
                     )
+                    
+                    # 调整布局
                     plt.tight_layout()
                     st.pyplot(fig)
                     plt.close()
@@ -284,8 +290,14 @@ if xgb_model:
                     # 条形图显示所有特征
                     fig, ax = plt.subplots(figsize=(12, 10))
                     
-                    # 准备数据（按SHAP值绝对值排序）
-                    plot_df = feature_importance_df.copy()
+                    # 创建DataFrame用于绘图
+                    plot_df = pd.DataFrame({
+                        '特征': feature_names_display,
+                        'SHAP值': shap_values_for_plot,
+                        '原始值': input_df.iloc[0].values
+                    }).sort_values('SHAP值', key=abs, ascending=True)
+                    
+                    # 设置颜色
                     colors = ['red' if x > 0 else 'blue' for x in plot_df['SHAP值']]
                     
                     # 创建水平条形图
@@ -293,11 +305,14 @@ if xgb_model:
                     ax.barh(y_pos, plot_df['SHAP值'], color=colors)
                     ax.set_yticks(y_pos)
                     ax.set_yticklabels(plot_df['特征'])
-                    ax.set_xlabel('SHAP值 (对预测的影响)')
-                    ax.set_title('所有特征对预测的贡献')
+                    ax.set_xlabel('SHAP值 (对预测的影响)', fontsize=12)
+                    ax.set_title('所有特征对预测的贡献', fontsize=14, fontweight='bold')
                     
                     # 添加垂直线在0处
-                    ax.axvline(x=0, color='black', linestyle='-', linewidth=0.5)
+                    ax.axvline(x=0, color='black', linestyle='-', linewidth=0.5, alpha=0.5)
+                    
+                    # 添加网格线
+                    ax.grid(True, axis='x', alpha=0.3)
                     
                     # 添加数值标签
                     for i, (val, color) in enumerate(zip(plot_df['SHAP值'], colors)):
@@ -312,17 +327,38 @@ if xgb_model:
                 
                 # 显示详细的SHAP值表格
                 with st.expander("查看详细的SHAP归因值"):
+                    # 创建详细的表格
+                    detail_df = pd.DataFrame({
+                        '特征': feature_names_display,
+                        '原始值': input_df.iloc[0].values,
+                        'SHAP值': shap_values_for_plot,
+                        '影响方向': ['增加风险' if x > 0 else '降低风险' for x in shap_values_for_plot]
+                    }).sort_values('SHAP值', key=abs, ascending=False)
+                    
+                    # 格式化显示
                     st.dataframe(
-                        feature_importance_df.style.format({'SHAP值': '{:.4f}', '原始值': '{:.2f}'})
-                        .bar(subset=['SHAP值'], color=['#lightcoral', '#lightblue']),
+                        detail_df.style.format({
+                            '原始值': '{:.2f}',
+                            'SHAP值': '{:.4f}'
+                        }).applymap(
+                            lambda x: 'color: red' if isinstance(x, (int, float)) and x > 0 else 'color: blue',
+                            subset=['SHAP值']
+                        ),
                         use_container_width=True
                     )
                 
                 # 添加解释说明
-                st.info(f"""
-                **解读**:
-                - 基线预测值 (Base Value): {expected_value:.3f}
-                - 最终预测概率: {prediction_proba:.3f}
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("基线预测值", f"{expected_value:.3f}")
+                with col2:
+                    st.metric("最终预测概率", f"{prediction_proba:.3f}")
+                
+                st.info("""
+                **如何解读SHAP图**:
+                - **红色条**：该特征值推高了预测风险
+                - **蓝色条**：该特征值降低了预测风险
+                - 条的长度表示影响的大小
                 - 所有特征的SHAP值之和 + 基线值 = 最终预测值的log-odds
                 """)
                 
@@ -337,10 +373,10 @@ if xgb_model:
                             '重要性': xgb_model.feature_importances_
                         }).sort_values('重要性', ascending=True)
                         
-                        fig, ax = plt.subplots(figsize=(12, 10))
+                        fig, ax = plt.subplots(figsize=(12, 8))
                         bars = ax.barh(importance_df['特征'], importance_df['重要性'])
-                        ax.set_xlabel('特征重要性')
-                        ax.set_title('XGBoost全局特征重要性')
+                        ax.set_xlabel('特征重要性', fontsize=12)
+                        ax.set_title('XGBoost全局特征重要性', fontsize=14, fontweight='bold')
                         
                         # 添加数值标签
                         for i, (bar, val) in enumerate(zip(bars, importance_df['重要性'])):
