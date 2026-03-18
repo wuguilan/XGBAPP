@@ -97,7 +97,7 @@ DEFAULT_VALUES = {
 }
 
 # --- 页面标题 ---
-st.title("⚕️ 基于XGBoost的患者死亡风险预测系统")
+st.title("⚕️ 基于XGBoost的患者死亡风险预测系统（Alfafa-sepsis-mortality）")
 st.markdown("---")
 
 # 侧边栏信息
