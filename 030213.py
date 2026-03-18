@@ -216,7 +216,7 @@ if xgb_model:
             
             st.markdown("---")
             
-                       # --- SHAP 个体化解释 ---
+            # --- SHAP 个体化解释 ---
             st.subheader("📊 个体化预测归因分析")
             st.markdown("""
             **红色**：增加死亡风险的因素  
@@ -256,11 +256,11 @@ if xgb_model:
                 # 提供两种可视化选择
                 viz_option = st.radio(
                     "选择可视化方式:",
-                    ["Waterfall图（默认显示Top10）", "条形图（显示所有特征）"],
+                    ["Waterfall图（显示所有特征）", "条形图（显示所有特征）"],
                     horizontal=True
                 )
                 
-                if viz_option == "Waterfall图（默认显示Top10）":
+                if viz_option == "Waterfall图（显示所有特征）":
                     # 创建Explanation对象
                     shap_exp = shap.Explanation(
                         values=shap_values_for_plot,
@@ -327,7 +327,7 @@ if xgb_model:
                 """)
                 
             except Exception as e:
-                st.warning(f"SHAP图生成失败，使用备选方案: {e}")
+                st.warning(f"SHAP详细分析失败，使用基础特征重要性: {e}")
                 
                 try:
                     # 备选方案：特征重要性条形图
@@ -349,5 +349,24 @@ if xgb_model:
                         plt.tight_layout()
                         st.pyplot(fig)
                         plt.close()
+                        
                 except Exception as e2:
                     st.error(f"备选可视化也失败: {e2}")
+            
+        except Exception as e:
+            st.error(f"预测过程中发生错误: {e}")
+            st.exception(e)
+
+else:
+    st.error("⚠️ 模型未能加载，应用无法运行。")
+    
+    # 调试信息
+    with st.expander("🔧 调试信息"):
+        import os
+        st.write(f"当前工作目录: {os.getcwd()}")
+        st.write(f"目录内容: {os.listdir('.')}")
+        
+        if os.path.exists('xgb_model.joblib'):
+            st.write(f"模型文件大小: {os.path.getsize('xgb_model.joblib')} 字节")
+        else:
+            st.write("模型文件不存在")
