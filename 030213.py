@@ -8,7 +8,7 @@ import numpy as np
 
 # --- 页面基础配置 ---
 st.set_page_config(
-    page_title="Patient Risk Prediction System",
+    page_title="患者风险预测系统",
     page_icon="⚕️",
     layout="wide"
 )
@@ -16,22 +16,22 @@ st.set_page_config(
 # --- 模型加载 ---
 @st.cache_resource
 def load_model(path):
-    """Load .joblib model"""
+    """加载 .joblib 格式的模型"""
     try:
         model = joblib.load(path)
         return model
     except FileNotFoundError:
-        st.error(f"Error: Model file '{path}' not found.")
-        st.error("Please ensure 'xgb_model.joblib' is in the same directory.")
+        st.error(f"错误：模型文件 '{path}' 未找到。")
+        st.error("请确保 'xgb_model.joblib' 文件与您的Streamlit应用在同一个目录下。")
         return None
     except Exception as e:
-        st.error(f"Unknown error loading model: {e}")
+        st.error(f"加载模型时发生未知错误: {e}")
         return None
 
-# Load model
+# 加载模型
 xgb_model = load_model('xgb_model.joblib')
 
-# --- Feature Definitions ---
+# --- 特征定义 ---
 FEATURE_COLUMNS = [
     'age', 'BMI', 'gcs', 'sofa', 'septic_shock', 'cancer', 'respiratory_failure',
     'stroke_tia', 'hemoglobin', 'platelet', 'wbc', 'albumin', 'creatinine',
@@ -49,27 +49,27 @@ BINARY_FEATURES = [
     'vasopressin', 'azole_antifungal_agents', 'sedative', 'vancomycin'
 ]
 
-# Feature display names (English only)
-FEATURE_DISPLAY_NAMES = {
+# 特征显示名称（英文，用于SHAP图）
+FEATURE_NAMES_EN = {
     'age': 'Age',
     'BMI': 'BMI',
     'gcs': 'GCS',
     'sofa': 'SOFA',
     'septic_shock': 'Septic Shock',
     'cancer': 'Cancer',
-    'respiratory_failure': 'Respiratory Failure',
+    'respiratory_failure': 'Resp Failure',
     'stroke_tia': 'Stroke/TIA',
-    'hemoglobin': 'Hemoglobin',
-    'platelet': 'Platelet',
+    'hemoglobin': 'HGB',
+    'platelet': 'PLT',
     'wbc': 'WBC',
-    'albumin': 'Albumin',
-    'creatinine': 'Creatinine',
+    'albumin': 'ALB',
+    'creatinine': 'Cr',
     'pt': 'PT',
     'ptt': 'PTT',
-    'heartrate': 'Heart Rate',
-    'respiratoryrate': 'Respiratory Rate',
+    'heartrate': 'HR',
+    'respiratoryrate': 'RR',
     'sbp': 'SBP',
-    'temperature': 'Temperature',
+    'temperature': 'Temp',
     'mv': 'MV',
     'vasopressin': 'Vasopressin',
     'azole_antifungal_agents': 'Antifungals',
@@ -77,7 +77,7 @@ FEATURE_DISPLAY_NAMES = {
     'vancomycin': 'Vancomycin'
 }
 
-# Default values
+# 默认值
 DEFAULT_VALUES = {
     'age': 60.0,
     'BMI': 24.0,
@@ -96,45 +96,57 @@ DEFAULT_VALUES = {
     'temperature': 36.5
 }
 
-# --- Page Title ---
-st.title("⚕️ XGBoost-based Patient Risk Prediction System")
+# --- 页面标题 ---
+st.title("⚕️ 基于XGBoost的患者死亡风险预测系统")
 st.markdown("---")
 
-# Sidebar information
+# 侧边栏信息
 with st.sidebar:
-    st.header("📋 System Info")
+    st.header("📋 系统信息")
     if xgb_model is not None:
-        st.success("✅ Model loaded successfully")
+        st.success("✅ 模型加载成功")
+        st.write(f"XGBoost版本: {xgboost.__version__}")
     else:
-        st.error("❌ Model loading failed")
+        st.error("❌ 模型加载失败")
     
-    st.header("📊 Risk Stratification")
+    st.header("📊 风险分层标准")
     st.markdown("""
-    - 🟢 **Low Risk**: ≤ 7.15%
-    - 🟡 **Medium Risk**: 7.15% - 44.45%
-    - 🔴 **High Risk**: > 44.45%
+    - 🟢 **低风险**: ≤ 7.15%
+    - 🟡 **中风险**: 7.15% - 44.45%
+    - 🔴 **高风险**: > 44.45%
     """)
     
     st.warning("""
-    **Clinical Disclaimer**
-    This tool is for reference only and should not replace professional medical judgment.
+    **临床免责声明**
+    本工具仅供参考，不能替代专业医疗判断。
+    所有临床决策都应结合患者具体情况。
     """)
 
-# --- User Input Interface ---
+# --- 用户输入界面 ---
 if xgb_model:
-    with st.expander("Click to enter patient parameters", expanded=True):
+    with st.expander("点击此处输入患者指标", expanded=True):
         input_data = {}
         
         with st.form("input_form"):
-            st.subheader("📊 Numeric Parameters")
+            st.subheader("📊 数值型指标")
             
-            # 3-column layout
+            # 3列布局
             cols = st.columns(3)
             for i, feature in enumerate(NUMERIC_FEATURES):
                 with cols[i % 3]:
-                    display_name = FEATURE_DISPLAY_NAMES.get(feature, feature)
+                    # 输入框标签使用英文+中文说明
+                    label = f"{FEATURE_NAMES_EN[feature]}"
+                    if feature == 'age':
+                        label = "Age (年龄)"
+                    elif feature == 'BMI':
+                        label = "BMI (身体质量指数)"
+                    elif feature == 'gcs':
+                        label = "GCS (格拉斯哥昏迷评分)"
+                    elif feature == 'sofa':
+                        label = "SOFA (序贯器官衰竭评分)"
+                    
                     input_data[feature] = st.number_input(
-                        label=display_name,
+                        label=label,
                         min_value=0.0,
                         max_value=200.0 if feature in ['age', 'BMI'] else 1000.0,
                         value=float(DEFAULT_VALUES.get(feature, 50.0)),
@@ -144,101 +156,102 @@ if xgb_model:
                     )
             
             st.markdown("---")
-            st.subheader("✅ Binary Parameters")
+            st.subheader("✅ 二分类指标 (是/否)")
             
-            # 4-column layout
+            # 4列布局
             bin_cols = st.columns(4)
             for i, feature in enumerate(BINARY_FEATURES):
                 with bin_cols[i % 4]:
-                    display_name = FEATURE_DISPLAY_NAMES.get(feature, feature)
+                    # 英文标签
+                    label = FEATURE_NAMES_EN[feature]
                     value = st.radio(
-                        label=display_name,
-                        options=['No', 'Yes'],
+                        label=label,
+                        options=['否', '是'],
                         key=f"bin_{feature}",
                         horizontal=True,
                         index=0
                     )
-                    input_data[feature] = 1 if value == 'Yes' else 0
+                    input_data[feature] = 1 if value == '是' else 0
             
-            submitted = st.form_submit_button("🔮 Predict Risk", type="primary", use_container_width=True)
+            submitted = st.form_submit_button("🔮 预测死亡风险", type="primary", use_container_width=True)
     
-    # --- Prediction and Results ---
+    # --- 预测和结果展示 ---
     if submitted:
-        st.header("📈 Prediction Results & Individualized Explanation")
+        st.header("📈 预测结果与个体化解释")
         
-        # Create DataFrame
+        # 创建DataFrame
         input_df = pd.DataFrame([input_data])
         input_df = input_df[FEATURE_COLUMNS]
         
-        # Show input data
-        with st.expander("View input data details"):
+        # 显示输入数据
+        with st.expander("查看输入数据详情"):
             display_df = input_df.copy()
-            display_df.columns = [FEATURE_DISPLAY_NAMES.get(c, c) for c in display_df.columns]
+            display_df.columns = [FEATURE_NAMES_EN.get(c, c) for c in display_df.columns]
             st.dataframe(display_df, use_container_width=True)
         
         try:
-            # Predict probability
+            # 预测概率
             prediction_proba = xgb_model.predict_proba(input_df)[:, 1][0]
             
-            # Risk stratification
+            # 风险分层
             if prediction_proba <= 0.0715:
-                risk_level = "Low Risk"
+                risk_level = "低风险"
                 risk_color = "green"
                 risk_emoji = "🟢"
             elif 0.0715 < prediction_proba <= 0.4445:
-                risk_level = "Medium Risk"
+                risk_level = "中风险"
                 risk_color = "orange"
                 risk_emoji = "🟡"
             else:
-                risk_level = "High Risk"
+                risk_level = "高风险"
                 risk_color = "red"
                 risk_emoji = "🔴"
             
-            # Display main results
+            # 显示主要结果
             col1, col2, col3 = st.columns(3)
             with col1:
-                st.metric("Mortality Risk", f"{prediction_proba:.2%}")
+                st.metric("死亡风险概率", f"{prediction_proba:.2%}")
             with col2:
-                st.metric("Risk Level", f"{risk_emoji} {risk_level}")
+                st.metric("风险等级", f"{risk_emoji} {risk_level}")
             with col3:
-                st.metric("Survival Probability", f"{(1-prediction_proba):.2%}")
+                st.metric("存活概率", f"{(1-prediction_proba):.2%}")
             
-            # Risk box
+            # 风险提示框
             st.markdown(f"""
             <div style='padding: 20px; border-radius: 10px; background-color: {risk_color}20; 
                         border-left: 5px solid {risk_color}; margin: 20px 0;'>
                 <h3 style='color: {risk_color}; margin: 0;'>{risk_emoji} {risk_level}</h3>
                 <p style='margin: 10px 0 0 0; font-size: 18px;'>
-                    Predicted mortality probability: {prediction_proba:.2%}
+                    预测死亡概率: {prediction_proba:.2%}
                 </p>
             </div>
             """, unsafe_allow_html=True)
             
             st.markdown("---")
             
-            # --- SHAP Individualized Explanation ---
-            st.subheader("📊 Individualized Prediction Attribution (SHAP)")
+            # --- SHAP 个体化解释 ---
+            st.subheader("📊 个体化预测归因分析 (SHAP)")
             st.markdown("""
-            **Legend**:
-            - 🔴 **Red**: Increases mortality risk
-            - 🔵 **Blue**: Decreases mortality risk
-            - Bar length indicates the magnitude of impact
+            **图例说明**：
+            - 🔴 **红色**：增加死亡风险的因素
+            - 🔵 **蓝色**：降低死亡风险的因素
+            - 条形长度表示影响程度的大小
             """)
             
             try:
-                # Create SHAP explainer
+                # 创建SHAP解释器
                 explainer = shap.TreeExplainer(xgb_model)
                 
-                # Calculate SHAP values
+                # 计算SHAP值
                 shap_values = explainer.shap_values(input_df)
                 
-                # Process SHAP values (for binary classification)
+                # 处理SHAP值（针对二分类）
                 if isinstance(shap_values, list):
                     shap_values_for_plot = shap_values[1][0] if len(shap_values) > 1 else shap_values[0][0]
                 else:
                     shap_values_for_plot = shap_values[0]
                 
-                # Get expected value
+                # 获取期望值
                 if hasattr(explainer, 'expected_value'):
                     if isinstance(explainer.expected_value, list):
                         expected_value = explainer.expected_value[1] if len(explainer.expected_value) > 1 else explainer.expected_value[0]
@@ -247,10 +260,10 @@ if xgb_model:
                 else:
                     expected_value = 0
                 
-                # Get feature names (English only)
-                feature_names_en = [FEATURE_DISPLAY_NAMES.get(f, f) for f in input_df.columns]
+                # 获取特征名称（英文，用于SHAP图）
+                feature_names_en = [FEATURE_NAMES_EN.get(f, f) for f in input_df.columns]
                 
-                # Create Explanation object
+                # 创建Explanation对象
                 shap_exp = shap.Explanation(
                     values=shap_values_for_plot,
                     base_values=expected_value,
@@ -258,132 +271,129 @@ if xgb_model:
                     feature_names=feature_names_en
                 )
                 
-                # Visualization options
+                # 可视化选项
                 viz_option = st.radio(
-                    "Select visualization:",
-                    ["Waterfall Plot", "Bar Chart (All Features)"],
+                    "选择可视化方式:",
+                    ["瀑布图 (Waterfall Plot)", "条形图 (显示所有特征)"],
                     horizontal=True
                 )
                 
-                if viz_option == "Waterfall Plot":
-                    # Waterfall plot
+                if viz_option == "瀑布图 (Waterfall Plot)":
+                    # 瀑布图
                     fig, ax = plt.subplots(figsize=(14, 8))
                     
                     shap.waterfall_plot(
                         shap_exp, 
                         show=False, 
-                        max_display=15  # Show top 15 features
+                        max_display=15  # 显示前15个最重要的特征
                     )
                     
                     plt.tight_layout()
                     st.pyplot(fig)
                     plt.close()
                     
+                    st.caption("注：瀑布图显示前15个最重要的特征")
+                    
                 else:
-                    # Bar chart with all features
+                    # 条形图显示所有特征
                     fig, ax = plt.subplots(figsize=(12, 10))
                     
-                    # Prepare data
+                    # 准备数据
                     plot_df = pd.DataFrame({
-                        'Feature': feature_names_en,
-                        'SHAP Value': shap_values_for_plot,
-                        'Original Value': input_df.iloc[0].values
-                    }).sort_values('SHAP Value', key=abs, ascending=True)
+                        '特征': feature_names_en,
+                        'SHAP值': shap_values_for_plot,
+                        '原始值': input_df.iloc[0].values
+                    }).sort_values('SHAP值', key=abs, ascending=True)
                     
-                    # Set colors
-                    colors = ['red' if x > 0 else 'blue' for x in plot_df['SHAP Value']]
+                    # 设置颜色
+                    colors = ['red' if x > 0 else 'blue' for x in plot_df['SHAP值']]
                     
-                    # Create horizontal bar chart
+                    # 创建水平条形图
                     y_pos = np.arange(len(plot_df))
-                    ax.barh(y_pos, plot_df['SHAP Value'], color=colors)
+                    ax.barh(y_pos, plot_df['SHAP值'], color=colors)
                     ax.set_yticks(y_pos)
-                    ax.set_yticklabels(plot_df['Feature'])
-                    ax.set_xlabel('SHAP Value (Impact on Prediction)', fontsize=12)
-                    ax.set_title('All Features Contribution', fontsize=14, fontweight='bold')
+                    ax.set_yticklabels(plot_df['特征'])
+                    ax.set_xlabel('SHAP值 (对预测的影响)', fontsize=12)
+                    ax.set_title('所有特征对预测的贡献', fontsize=14, fontweight='bold')
                     
-                    # Add vertical line at 0
+                    # 添加垂直线在0处
                     ax.axvline(x=0, color='black', linestyle='-', linewidth=0.5, alpha=0.5)
                     
-                    # Add grid
+                    # 添加网格
                     ax.grid(True, axis='x', alpha=0.3)
                     
                     plt.tight_layout()
                     st.pyplot(fig)
                     plt.close()
                 
-                # Detailed SHAP values table
-                with st.expander("View detailed SHAP values"):
+                # 详细的SHAP值表格
+                with st.expander("查看详细的SHAP归因值"):
                     detail_df = pd.DataFrame({
-                        'Feature': feature_names_en,
-                        'Original Value': input_df.iloc[0].values,
-                        'SHAP Value': shap_values_for_plot,
-                        'Impact': ['Increases Risk' if x > 0 else 'Decreases Risk' for x in shap_values_for_plot]
-                    }).sort_values('SHAP Value', key=abs, ascending=False)
+                        '特征': feature_names_en,
+                        '原始值': input_df.iloc[0].values,
+                        'SHAP值': shap_values_for_plot,
+                        '影响方向': ['增加风险' if x > 0 else '降低风险' for x in shap_values_for_plot]
+                    }).sort_values('SHAP值', key=abs, ascending=False)
                     
                     st.dataframe(
                         detail_df.style.format({
-                            'Original Value': '{:.2f}',
-                            'SHAP Value': '{:.4f}'
+                            '原始值': '{:.2f}',
+                            'SHAP值': '{:.4f}'
                         }),
                         use_container_width=True
                     )
                 
-                # Interpretation guide
+                # 解释说明
                 col1, col2 = st.columns(2)
                 with col1:
-                    st.metric("Base Value", f"{expected_value:.3f}")
+                    st.metric("基线值", f"{expected_value:.3f}")
                 with col2:
-                    st.metric("Final Prediction", f"{prediction_proba:.3f}")
+                    st.metric("最终预测值", f"{prediction_proba:.3f}")
                 
                 st.info("""
-                **How to interpret**:
-                - The base value is the average model prediction
-                - Each feature's SHAP value shows its contribution
-                - Sum of all SHAP values + base value = log-odds of final prediction
-                - Positive SHAP (red) pushes prediction higher (increases risk)
-                - Negative SHAP (blue) pushes prediction lower (decreases risk)
+                **解读方法**：
+                - 基线值是模型对所有患者的平均预测
+                - 每个特征的SHAP值表示其对预测的贡献
+                - 所有SHAP值之和 + 基线值 = 最终预测值的对数几率
+                - 红色(正值)增加风险，蓝色(负值)降低风险
                 """)
                 
             except Exception as e:
-                st.warning(f"SHAP analysis failed, showing basic feature importance: {e}")
+                st.warning(f"SHAP详细分析失败，显示基础特征重要性: {e}")
                 
                 try:
-                    # Fallback: feature importance bar chart
+                    # 备选方案：特征重要性条形图
                     if hasattr(xgb_model, 'feature_importances_'):
                         importance_df = pd.DataFrame({
-                            'Feature': [FEATURE_DISPLAY_NAMES.get(f, f) for f in FEATURE_COLUMNS],
-                            'Importance': xgb_model.feature_importances_
-                        }).sort_values('Importance', ascending=True)
+                            '特征': [FEATURE_NAMES_EN.get(f, f) for f in FEATURE_COLUMNS],
+                            '重要性': xgb_model.feature_importances_
+                        }).sort_values('重要性', ascending=True)
                         
                         fig, ax = plt.subplots(figsize=(12, 8))
-                        bars = ax.barh(importance_df['Feature'], importance_df['Importance'])
-                        ax.set_xlabel('Feature Importance', fontsize=12)
-                        ax.set_title('XGBoost Global Feature Importance', fontsize=14, fontweight='bold')
+                        bars = ax.barh(importance_df['特征'], importance_df['重要性'])
+                        ax.set_xlabel('特征重要性', fontsize=12)
+                        ax.set_title('XGBoost全局特征重要性', fontsize=14, fontweight='bold')
                         
                         plt.tight_layout()
                         st.pyplot(fig)
                         plt.close()
                         
                 except Exception as e2:
-                    st.error(f"Fallback visualization also failed: {e2}")
+                    st.error(f"备选可视化也失败: {e2}")
             
         except Exception as e:
-            st.error(f"Error during prediction: {e}")
+            st.error(f"预测过程中发生错误: {e}")
             st.exception(e)
 
 else:
-    st.error("⚠️ Model failed to load. Application cannot run.")
+    st.error("⚠️ 模型未能加载，应用无法运行。")
     
-    # Debug information
-    with st.expander("🔧 Debug Info"):
+    # 调试信息
+    with st.expander("🔧 调试信息"):
         import os
-        st.write(f"Current working directory: {os.getcwd()}")
-        st.write(f"Directory contents: {os.listdir('.')}")
+        st.write(f"当前工作目录: {os.getcwd()}")
+        st.write(f"目录内容: {os.listdir('.')}")
         
-        if os.path.exists('xgb_model.joblib'):
-            st.write(f"Model file size: {os.path.getsize('xgb_model.joblib')} bytes")
-        else:
-            st.write("Model file not found")
         if os.path.exists('xgb_model.joblib'):
             st.write(f"模型文件大小: {os.path.getsize('xgb_model.joblib')} 字节")
         else:
